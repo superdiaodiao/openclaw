@@ -3477,6 +3477,12 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     expect(releaseGateMerge.if).toBe(
       "matrix.task == 'max-lines-ratchet' && github.event_name == 'workflow_dispatch' && inputs.release_gate",
     );
+    expect(workflow.jobs.preflight.outputs.diff_head_revision).toBe(
+      "${{ steps.diff_base.outputs.head_sha }}",
+    );
+    expect(releaseGateMerge.env.RELEASE_GATE_MERGE_SHA).toBe(
+      "${{ needs.preflight.outputs.diff_head_revision }}",
+    );
     expect(checksFastRun.run).toContain("max-lines-ratchet)");
     expect(checksFastRun.run).toContain('has_package_script "check:max-lines-ratchet"');
     expect(checksFastRun.env.RATCHET_EVENT_BASE_SHA).toBe(
@@ -3495,7 +3501,7 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       'gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}"',
     );
     expect(releaseGateMerge.run).toContain(
-      '| [.base.ref, (if .mergeable == null then "unknown" else (.mergeable | tostring) end)]',
+      '| if .mergeable == null then "unknown" else (.mergeable | tostring) end',
     );
     expect(releaseGateMerge.run).not.toContain(".base.sha");
     expect(releaseGateMerge.run).toContain(
@@ -3505,20 +3511,19 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     expect(releaseGateMerge.run).toContain('if [[ "$mergeable" == "false" ]]');
     expect(releaseGateMerge.run).toContain("release-gate pull request is not mergeable");
     expect(releaseGateMerge.run).toContain("sleep 5");
+    expect(releaseGateMerge.run).not.toContain("refs/pull/${PULL_REQUEST_NUMBER}/merge");
     expect(releaseGateMerge.run).toContain(
-      '"+refs/heads/${base_ref}:refs/remotes/origin/ci-max-lines-base"',
+      'git fetch --no-tags --depth=2 origin "$RELEASE_GATE_MERGE_SHA"',
+    );
+    expect(releaseGateMerge.run).toContain('merge_sha="$(git rev-parse FETCH_HEAD)"');
+    expect(releaseGateMerge.run).toContain('if [[ "$merge_sha" == "$RELEASE_GATE_MERGE_SHA"');
+    expect(releaseGateMerge.run).toContain('"$merge_head" == "$TARGET_SHA"');
+    expect(releaseGateMerge.run).toContain('base_sha="$merge_base"');
+    expect(releaseGateMerge.run).toContain(
+      'timeout --signal=TERM --kill-after=10s 120s git fetch --no-tags --depth=2 origin "$RELEASE_GATE_MERGE_SHA"',
     );
     expect(releaseGateMerge.run).toContain(
-      '"+refs/pull/${PULL_REQUEST_NUMBER}/merge:refs/remotes/origin/ci-max-lines-merge"',
-    );
-    expect(releaseGateMerge.run).toContain(
-      "timeout --signal=TERM --kill-after=10s 120s git fetch --no-tags --depth=2 origin \\",
-    );
-    expect(releaseGateMerge.run).toContain(
-      'base_sha="$(git rev-parse refs/remotes/origin/ci-max-lines-base)"',
-    );
-    expect(releaseGateMerge.run).toContain(
-      "release-gate merge tree did not refresh to the current pull request base and head",
+      "release-gate exact merge tree was unavailable or did not match the target head",
     );
     expect(releaseGateMerge.run).toContain('git checkout --detach "$merge_sha"');
     expect(releaseGateMerge.run).toContain(

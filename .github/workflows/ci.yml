@@ -72,6 +72,7 @@ jobs:
     outputs:
       checkout_revision: ${{ steps.checkout_ref.outputs.sha }}
       diff_base_revision: ${{ steps.diff_base.outputs.sha }}
+      diff_head_revision: ${{ steps.diff_base.outputs.head_sha }}
       docs_only: ${{ steps.manifest.outputs.docs_only }}
       docs_changed: ${{ steps.manifest.outputs.docs_changed }}
       run_node: ${{ steps.manifest.outputs.run_node }}
@@ -1372,6 +1373,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
+          RELEASE_GATE_MERGE_SHA: ${{ needs.preflight.outputs.diff_head_revision }}
           TARGET_SHA: ${{ inputs.target_ref }}
         shell: bash
         run: |
@@ -1382,29 +1384,26 @@ jobs:
               gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}" |
                 jq -r --arg repo "$GITHUB_REPOSITORY" --arg target "$TARGET_SHA" '
                   select(.state == "open" and .head.sha == $target and .base.repo.full_name == $repo)
-                  | [.base.ref, (if .mergeable == null then "unknown" else (.mergeable | tostring) end)]
-                  | @tsv
+                  | if .mergeable == null then "unknown" else (.mergeable | tostring) end
                 '
             )"
             if [[ -z "$pr_info" ]]; then
               echo "release-gate pull request must be open and match the target head" >&2
               exit 1
             fi
-            IFS=$'\t' read -r base_ref mergeable <<<"$pr_info"
+            mergeable="$pr_info"
             if [[ "$mergeable" == "false" ]]; then
               echo "release-gate pull request is not mergeable" >&2
               exit 1
             fi
-            # The PR API's base SHA can lag the branch. Fetch the base and merge
-            # refs together so an advancing base retries instead of false-failing.
+            # Preflight freezes the merge commit once. Fetch that immutable SHA
+            # so a mutable PR merge ref cannot change the tree between jobs.
             if [[ "$mergeable" == "true" ]] &&
-              timeout --signal=TERM --kill-after=10s 120s git fetch --no-tags --depth=2 origin \
-                "+refs/heads/${base_ref}:refs/remotes/origin/ci-max-lines-base" \
-                "+refs/pull/${PULL_REQUEST_NUMBER}/merge:refs/remotes/origin/ci-max-lines-merge"; then
-              base_sha="$(git rev-parse refs/remotes/origin/ci-max-lines-base)"
-              merge_sha="$(git rev-parse refs/remotes/origin/ci-max-lines-merge)"
+              timeout --signal=TERM --kill-after=10s 120s git fetch --no-tags --depth=2 origin "$RELEASE_GATE_MERGE_SHA"; then
+              merge_sha="$(git rev-parse FETCH_HEAD)"
               read -r merge_base merge_head extra_parent <<<"$(git show -s --format=%P "$merge_sha")"
-              if [[ "$merge_base" == "$base_sha" && "$merge_head" == "$TARGET_SHA" && -z "$extra_parent" ]]; then
+              if [[ "$merge_sha" == "$RELEASE_GATE_MERGE_SHA" && -n "$merge_base" && "$merge_head" == "$TARGET_SHA" && -z "$extra_parent" ]]; then
+                base_sha="$merge_base"
                 prepared=true
                 break
               fi
@@ -1414,7 +1413,7 @@ jobs:
             fi
           done
           if [[ "$prepared" != "true" ]]; then
-            echo "release-gate merge tree did not refresh to the current pull request base and head" >&2
+            echo "release-gate exact merge tree was unavailable or did not match the target head" >&2
             exit 1
           fi
           git checkout --detach "$merge_sha"
