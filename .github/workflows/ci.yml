@@ -73,6 +73,7 @@ jobs:
       checkout_revision: ${{ steps.checkout_ref.outputs.sha }}
       diff_base_revision: ${{ steps.diff_base.outputs.sha }}
       diff_head_revision: ${{ steps.diff_base.outputs.head_sha }}
+      release_gate_merge_revision: ${{ steps.diff_base.outputs.release_gate_merge_sha }}
       docs_only: ${{ steps.manifest.outputs.docs_only }}
       docs_changed: ${{ steps.manifest.outputs.docs_changed }}
       run_node: ${{ steps.manifest.outputs.run_node }}
@@ -257,6 +258,7 @@ jobs:
           set -euo pipefail
           base_sha="$EVENT_BASE_SHA"
           head_sha="$(git rev-parse HEAD)"
+          release_gate_merge_sha=""
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             # A long-lived PR event can retain an old base SHA. The tested merge
             # commit's first parent is the exact target tree for this run.
@@ -276,9 +278,11 @@ jobs:
             fi
             base_sha="$(git rev-parse "${merge_ref}^1")"
             head_sha="$(git rev-parse "$merge_ref")"
+            release_gate_merge_sha="$head_sha"
           fi
           echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "release_gate_merge_sha=$release_gate_merge_sha" >> "$GITHUB_OUTPUT"
 
       - name: Validate historical release target
         id: historical_target
@@ -1373,7 +1377,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
-          RELEASE_GATE_MERGE_SHA: ${{ needs.preflight.outputs.diff_head_revision }}
+          RELEASE_GATE_MERGE_SHA: ${{ needs.preflight.outputs.release_gate_merge_revision }}
           TARGET_SHA: ${{ inputs.target_ref }}
         shell: bash
         run: |

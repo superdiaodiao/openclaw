@@ -3480,8 +3480,11 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     expect(workflow.jobs.preflight.outputs.diff_head_revision).toBe(
       "${{ steps.diff_base.outputs.head_sha }}",
     );
+    expect(workflow.jobs.preflight.outputs.release_gate_merge_revision).toBe(
+      "${{ steps.diff_base.outputs.release_gate_merge_sha }}",
+    );
     expect(releaseGateMerge.env.RELEASE_GATE_MERGE_SHA).toBe(
-      "${{ needs.preflight.outputs.diff_head_revision }}",
+      "${{ needs.preflight.outputs.release_gate_merge_revision }}",
     );
     expect(checksFastRun.run).toContain("max-lines-ratchet)");
     expect(checksFastRun.run).toContain('has_package_script "check:max-lines-ratchet"');
