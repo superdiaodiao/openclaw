@@ -527,7 +527,8 @@ property on the returned `AnyAgentTool` object.
 
 Current built-in contracts include `agents_list`, `conversations_list`,
 `conversations_send`, `conversations_turn`, `openclaw`, `screen`,
-`sessions_search`, `spawn_task`, `terminal`, `web_fetch`, and `web_search`.
+`sessions_history`, `sessions_list`, `sessions_search`, `sessions_send`,
+`session_status`, `spawn_task`, `terminal`, `web_fetch`, and `web_search`.
 Exact passthroughs can reuse their owning protocol schema instead of
 duplicating a model-only contract. For example, the conversation tools expose
 the same Gateway result schemas used by `conversations.list`,
