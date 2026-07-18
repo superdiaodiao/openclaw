@@ -1382,7 +1382,7 @@ jobs:
               gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}" |
                 jq -r --arg repo "$GITHUB_REPOSITORY" --arg target "$TARGET_SHA" '
                   select(.state == "open" and .head.sha == $target and .base.repo.full_name == $repo)
-                  | [.base.sha, (if .mergeable == null then "unknown" else (.mergeable | tostring) end)]
+                  | [.base.ref, (if .mergeable == null then "unknown" else (.mergeable | tostring) end)]
                   | @tsv
                 '
             )"
@@ -1390,14 +1390,18 @@ jobs:
               echo "release-gate pull request must be open and match the target head" >&2
               exit 1
             fi
-            IFS=$'\t' read -r base_sha mergeable <<<"$pr_info"
+            IFS=$'\t' read -r base_ref mergeable <<<"$pr_info"
             if [[ "$mergeable" == "false" ]]; then
               echo "release-gate pull request is not mergeable" >&2
               exit 1
             fi
+            # The PR API's base SHA can lag the branch. Fetch the base and merge
+            # refs together so an advancing base retries instead of false-failing.
             if [[ "$mergeable" == "true" ]] &&
               timeout --signal=TERM --kill-after=10s 120s git fetch --no-tags --depth=2 origin \
+                "+refs/heads/${base_ref}:refs/remotes/origin/ci-max-lines-base" \
                 "+refs/pull/${PULL_REQUEST_NUMBER}/merge:refs/remotes/origin/ci-max-lines-merge"; then
+              base_sha="$(git rev-parse refs/remotes/origin/ci-max-lines-base)"
               merge_sha="$(git rev-parse refs/remotes/origin/ci-max-lines-merge)"
               read -r merge_base merge_head extra_parent <<<"$(git show -s --format=%P "$merge_sha")"
               if [[ "$merge_base" == "$base_sha" && "$merge_head" == "$TARGET_SHA" && -z "$extra_parent" ]]; then

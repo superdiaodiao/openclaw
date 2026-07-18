@@ -3495,6 +3495,10 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
       'gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}"',
     );
     expect(releaseGateMerge.run).toContain(
+      '| [.base.ref, (if .mergeable == null then "unknown" else (.mergeable | tostring) end)]',
+    );
+    expect(releaseGateMerge.run).not.toContain(".base.sha");
+    expect(releaseGateMerge.run).toContain(
       "release-gate pull request must be open and match the target head",
     );
     expect(releaseGateMerge.run).toContain("for attempt in {1..6}");
@@ -3502,10 +3506,16 @@ printf '%s\n' "\${CURL_SUCCESS_IP:-203.0.113.7}"
     expect(releaseGateMerge.run).toContain("release-gate pull request is not mergeable");
     expect(releaseGateMerge.run).toContain("sleep 5");
     expect(releaseGateMerge.run).toContain(
+      '"+refs/heads/${base_ref}:refs/remotes/origin/ci-max-lines-base"',
+    );
+    expect(releaseGateMerge.run).toContain(
       '"+refs/pull/${PULL_REQUEST_NUMBER}/merge:refs/remotes/origin/ci-max-lines-merge"',
     );
     expect(releaseGateMerge.run).toContain(
       "timeout --signal=TERM --kill-after=10s 120s git fetch --no-tags --depth=2 origin \\",
+    );
+    expect(releaseGateMerge.run).toContain(
+      'base_sha="$(git rev-parse refs/remotes/origin/ci-max-lines-base)"',
     );
     expect(releaseGateMerge.run).toContain(
       "release-gate merge tree did not refresh to the current pull request base and head",
