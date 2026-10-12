@@ -128,7 +128,7 @@ describe("web-fetch-utils", () => {
   });
 
   it("skips raw-text blocks without reusing indices from a lowercased copy", () => {
-    expect(htmlToMarkdown(`İ<script>x</script><p>After</p>`).text).toBe("İAfter");
+    expect(htmlToMarkdown(`İ<script>x</script><p>After</p>`).text).toBe("İ\nAfter");
   });
 
   it("continues href scanning after unsupported framework-style attributes", () => {
@@ -167,6 +167,24 @@ describe("web-fetch-utils", () => {
     expect(
       htmlToMarkdown(`<a href=/promo>deal <p>Para one.</p><h1>Head</h1><p>Para two.</p>`).text,
     ).toBe("[deal](/promo) Para one.\n\n# Head\nPara two.");
+  });
+
+  it("keeps table cells apart", () => {
+    expect(
+      htmlToMarkdown(
+        "<table><tr><th>Plan</th><th>Seats</th><th>Price</th></tr><tr><td>Basic</td><td>2024</td><td>15</td></tr></table>",
+      ).text,
+    ).toBe("Plan Seats Price\nBasic 2024 15");
+  });
+
+  it.each([
+    ["<span>Intro</span><div>Body</div>", "Intro\nBody"],
+    ["<dl><dt>Term</dt><dd>Definition</dd></dl>", "Term\nDefinition"],
+    ["<pre>return 0</pre><p>Next paragraph.</p>", "return 0\nNext paragraph."],
+    ["<p>Before</p><blockquote>Quoted</blockquote><p>After</p>", "Before\nQuoted\nAfter"],
+    ["<p>One</p><p>Two</p>", "One\nTwo"],
+  ])("separates block boundaries: %s", (html, text) => {
+    expect(htmlToMarkdown(html).text).toBe(text);
   });
 
   it("drops bogus closing tags instead of exposing hidden text", () => {

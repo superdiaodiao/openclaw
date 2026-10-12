@@ -26,6 +26,11 @@ const BLOCK_BREAK_TAGS = new Set([
   "tr",
   "ul",
   "ol",
+  "pre",
+  "blockquote",
+  "dl",
+  "dt",
+  "dd",
 ]);
 // Keep malformed nested markup from making end-of-document context unwind quadratic.
 // web_fetch favors bounded, auditable text over preserving deep broken HTML structure.
@@ -192,6 +197,8 @@ export function htmlToMarkdown(html: string): { text: string; title?: string } {
         closeThroughContext(stack, kind, state);
       } else if (BLOCK_BREAK_TAGS.has(token.name)) {
         appendText(stack, "\n");
+      } else if (token.name === "td" || token.name === "th") {
+        appendText(stack, " ");
       }
       continue;
     }
@@ -200,8 +207,12 @@ export function htmlToMarkdown(html: string): { text: string; title?: string } {
       i = readRawTextBounds(html, token.name, i).end;
       continue;
     }
-    if (BLOCK_BREAK_TAGS.has(token.name) && closeThroughContext(stack, "anchor", state, true)) {
-      appendText(stack, " ");
+    if (BLOCK_BREAK_TAGS.has(token.name)) {
+      if (closeThroughContext(stack, "anchor", state, true)) {
+        appendText(stack, " ");
+      } else if (!(stack[stack.length - 1]!.parts.at(-1) ?? "\n").endsWith("\n")) {
+        appendText(stack, "\n");
+      }
     }
     if (token.name === "br" || token.name === "hr") {
       appendText(stack, "\n");
